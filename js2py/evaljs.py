@@ -1,21 +1,84 @@
 # coding=utf-8
 """ This module is still experimental!
 """
-from translators.translator import translate_js, dbg, DEFAULT_HEADER
+from .translators import translate_js, DEFAULT_HEADER
 import sys
 import time
 import json
-__all__  = ['EvalJs', 'translate_js', 'import_js', 'eval_js']
+import six
+import os
+import hashlib
+import codecs
+
+
+
+__all__  = ['EvalJs', 'translate_js', 'import_js', 'eval_js', 'translate_file', 'run_file']
+DEBUG = False
+
+def path_as_local(path):
+    return os.path.join(os.getcwd(), path)
 
 def import_js(path, lib_name, globals):
     """Imports from javascript source file.
       globals is your globals()"""
-    with open(path, 'rb') as f:
+    with codecs.open(path_as_local(path), "r", "utf-8") as f:
         js = f.read()
     e = EvalJs()
     e.execute(js)
     var = e.context['var']
     globals[lib_name] = var.to_python()
+
+
+def get_file_contents(path_or_file):
+    if hasattr(path_or_file, 'read'):
+        js = path_or_file.read()
+    else:
+        with codecs.open(path_as_local(path_or_file), "r", "utf-8") as f:
+            js = f.read()
+    return js
+
+
+def translate_file(input_path_or_file, output_path_or_file):
+    '''
+    Translates input JS file to python and saves the output to the output file.
+    It appends some convenience code at the end so that it is easy to import JS objects.
+
+    For example we have a file 'example.js' with:   var a = function(x) {return x}
+    translate_file('example.js', 'example.py')
+
+    Now example.py can be easily importend and used:
+    >>> from example import a
+    >>> a(30)
+    30
+    '''
+    js = get_file_contents(input_path_or_file)
+
+    py_code = translate_js(js)
+
+    to_add = '''pyvar = var.to_python()\n'''
+    ctx = {}
+#    exec(py_code, ctx)
+  #  for name in ctx['var'].own:
+  #      to_add += '%s = pyvar'
+    with open(output_path_or_file, 'w') as f:
+        f.write(py_code)
+
+
+
+
+
+
+def run_file(path_or_file, context=None):
+    ''' Context must be EvalJS object. Runs given path as a JS program. Returns (eval_value, context).
+    '''
+    if context is None:
+        context = EvalJs()
+    if not isinstance(context, EvalJs):
+        raise TypeError('context must be the instance of EvalJs')
+    eval_value = context.eval(get_file_contents(path_or_file))
+    return eval_value, context
+
+
 
 def eval_js(js):
     """Just like javascript eval. Translates javascript to python,
@@ -61,25 +124,75 @@ class EvalJs(object):
        You can run interactive javascript console with console method!"""
     def __init__(self, context={}):
         self.__dict__['_context'] = {}
-        exec DEFAULT_HEADER in self._context
+        exec(DEFAULT_HEADER, self._context)
         self.__dict__['_var'] = self._context['var'].to_python()
         if not isinstance(context, dict):
             try:
                 context = context.__dict__
             except:
                 raise TypeError('context has to be either a dict or have __dict__ attr')
-        for k, v in context.iteritems():
+        for k, v in six.iteritems(context):
             setattr(self._var, k, v)
 
-    def execute(self, js):
-        """executes javascript js in current context"""
-        code = translate_js(js, '')
-        exec code in self._context
+    def execute(self, js=None, use_compilation_plan=False):
+        """executes javascript js in current context
 
-    def eval(self, expression):
+        During initial execute() the converted js is cached for re-use. That means next time you
+        run the same javascript snippet you save many instructions needed to parse and convert the
+        js code to python code.
+
+        This cache causes minor overhead (a cache dicts is updated) but the Js=>Py conversion process
+        is typically expensive compared to actually running the generated python code.
+
+        Note that the cache is just a dict, it has no expiration or cleanup so when running this
+        in automated situations with vast amounts of snippets it might increase memory usage.
+        """
+        try:
+            cache = self.__dict__['cache']
+        except KeyError:
+            cache = self.__dict__['cache'] = {}
+        hashkey = hashlib.md5(js.encode('utf-8')).digest()
+        try:
+            compiled = cache[hashkey]
+        except KeyError:
+            code = translate_js(js, '', use_compilation_plan=use_compilation_plan)
+            compiled = cache[hashkey] = compile(code, '<EvalJS snippet>', 'exec')
+        exec(compiled, self._context)
+
+    def eval(self, expression, use_compilation_plan=False):
         """evaluates expression in current context and returns its value"""
         code = 'PyJsEvalResult = eval(%s)'%json.dumps(expression)
-        self.execute(code)
+        self.execute(code, use_compilation_plan=use_compilation_plan)
+        return self['PyJsEvalResult']
+
+    def execute_debug(self, js):
+        """executes javascript js in current context
+        as opposed to the (faster) self.execute method, you can use your regular debugger
+        to set breakpoints and inspect the generated python code
+        """
+        code = translate_js(js, '')
+        # make sure you have a temp folder:
+        filename = 'temp' + os.sep + '_' + hashlib.md5(code).hexdigest() + '.py'
+        try:
+            with open(filename, mode='w') as f:
+                f.write(code)
+            execfile(filename, self._context)
+        except Exception as err:
+            raise err
+        finally:
+            os.remove(filename)
+            try:
+                os.remove(filename + 'c')
+            except:
+                pass
+
+    def eval_debug(self, expression):
+        """evaluates expression in current context and returns its value
+        as opposed to the (faster) self.execute method, you can use your regular debugger
+        to set breakpoints and inspect the generated python code
+        """
+        code = 'PyJsEvalResult = eval(%s)'%json.dumps(expression)
+        self.execute_debug(code)
         return self['PyJsEvalResult']
 
     def __getattr__(self, var):
@@ -97,9 +210,12 @@ class EvalJs(object):
     def console(self):
         """starts to interact (starts interactive console) Something like code.InteractiveConsole"""
         while True:
-            code = raw_input('>>> ')
+            if six.PY2:
+                code = raw_input('>>> ')
+            else:
+                code = input('>>>')
             try:
-                print self.eval(code)
+                print(self.eval(code))
             except KeyboardInterrupt:
                 break
             except Exception as e:
@@ -112,18 +228,16 @@ class EvalJs(object):
 
 
 
-x = r'''
-var return;
-'''.replace('\n','\n').decode('unicode-escape')
 
 #print x
 
-DEBUG = True
+
 
 if __name__=='__main__':
     #with open('C:\Users\Piotrek\Desktop\esprima.js', 'rb') as f:
     #    x = f.read()
     e = EvalJs()
+    e.execute('square(x)')
     #e.execute(x)
     e.console()
 
