@@ -16,7 +16,24 @@ Simple Example:
     6
     >>> add.constructor
     function Function() { [python code] }
+    >>> js2py.require('underscore')
+    'function _(obj) { [python code] }'
 ```
+You can also import a big number of node modules as if they were written in Python!
+For example, here we import a pure JS library [crypto-js](https://www.npmjs.com/package/crypto-js):
+
+```python
+    >>> CryptoJS = js2py.require('crypto-js')
+    >>> data = [{'id': 1}, {'id': 2}]
+    >>> JSON = js2py.eval_js('JSON')
+    >>> ciphertext = CryptoJS.AES.encrypt(JSON.stringify(data), 'secret key 123')
+    >>> bytes  = CryptoJS.AES.decrypt(ciphertext.toString(), 'secret key 123')
+    >>> decryptedData = JSON.parse(bytes.toString(CryptoJS.enc.Utf8)).to_list()
+    >>> decryptedData
+    [{u'id': 1}, {u'id': 2}]
+```
+
+
 
 Now also supports JavaScript 6 (still experimental):
 
@@ -47,7 +64,17 @@ Every feature of ECMA 5.1 is implemented (except of 'with' statement):
 ```
 Unfortunately even though Js2Py can be generally used to translate huge Js files (over 50k lines long), in rare cases you may encounter some unexpected problems (like javascript calling a function with 300 arguments - python allows only 255). These problems are very hard to fix with current translation approach. I will try to implement an interpreter in near future which will hopefully fix all the edge cases.
 
-    
+### JavaScript 'VirtualMachine' in Python
+
+If the translator for some reason does not work for you, you can try the new JS VM:
+
+```python
+from js2py.internals import seval
+seval.eval_js_vm(code)
+```
+
+<hr>
+
 #### More advanced usage example
 
 It is possible to access all the variables from JS scope using EvalJs. Moreover, you can use Python objects from your JavaScript code if you add them to the scope. 

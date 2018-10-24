@@ -1,5 +1,6 @@
-from ..base import *
-from six.moves.urllib.parse import quote, unquote
+from __future__ import unicode_literals
+from ..conversions import *
+from ..func_utils import *
 
 
 RADIX_CHARS = {'1': 1, '0': 0, '3': 3, '2': 2, '5': 5, '4': 4, '7': 7, '6': 6, '9': 9, '8': 8, 'a': 10, 'c': 12,
@@ -8,15 +9,21 @@ RADIX_CHARS = {'1': 1, '0': 0, '3': 3, '2': 2, '5': 5, '4': 4, '7': 7, '6': 6, '
                'x': 33, 'z': 35, 'A': 10, 'C': 12, 'B': 11, 'E': 14, 'D': 13, 'G': 16, 'F': 15, 'I': 18, 'H': 17,
                'K': 20, 'J': 19, 'M': 22, 'L': 21, 'O': 24, 'N': 23, 'Q': 26, 'P': 25, 'S': 28, 'R': 27, 'U': 30,
                'T': 29, 'W': 32, 'V': 31, 'Y': 34, 'X': 33, 'Z': 35}
-@Js
-def parseInt (string , radix):
-    string = string.to_string().value.lstrip()
+
+# parseFloat
+# parseInt
+# isFinite
+# isNaN
+
+def parseInt(this, args):
+    string, radix = get_arg(args, 0), get_arg(args, 1)
+    string = to_string(string).lstrip()
     sign = 1
     if string and string[0] in ('+', '-'):
         if string[0]=='-':
             sign = -1
         string = string[1:]
-    r = radix.to_int32()
+    r = to_int32(radix)
     strip_prefix = True
     if r:
         if r<2 or r>36:
@@ -39,11 +46,12 @@ def parseInt (string , radix):
         n += 1
     if not n:
         return NaN
-    return sign*num
+    return float(sign*num)
 
-@Js
-def parseFloat(string):
-    string = string.to_string().value.strip()
+
+def parseFloat(this, args):
+    string = get_arg(args, 0)
+    string = to_string(string).strip()
     sign = 1
     if string and string[0] in ('+', '-'):
         if string[0]=='-':
@@ -67,42 +75,17 @@ def parseFloat(string):
         return NaN
     return sign*float(string[:max_len])
 
-@Js
-def isNaN(number):
-    if number.to_number().is_nan():
-        return true
-    return false
 
-@Js
-def isFinite(number):
-    num = number.to_number()
-    if num.is_nan() or num.is_infinity():
-        return false
-    return true
+def isNaN(this, args):
+    number = get_arg(args, 0)
+    if is_nan(to_number(number)):
+        return True
+    return False
 
 
-# todo test them properly
-
-@Js
-def escape(text):
-    return quote(text.to_string().value)
-
-@Js
-def unescape(text):
-    return unquote(text.to_string().value)
-
-@Js
-def encodeURI(text):
-    return quote(text.to_string().value, safe='~@#$&()*!+=:;,.?/\'')
-
-@Js
-def decodeURI(text):
-    return unquote(text.to_string().value)
-
-@Js
-def encodeURIComponent(text):
-    return quote(text.to_string().value, safe='~()*!.\'')
-
-@Js
-def decodeURIComponent(text):
-    return unquote(text.to_string().value)
+def isFinite(this, args):
+    number = get_arg(args, 0)
+    num = to_number(number)
+    if is_nan(num) or is_infinity(num):
+        return False
+    return True

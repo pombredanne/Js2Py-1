@@ -108,3 +108,8 @@ $RECYCLE.BIN/
 .idea/dictionaries/
 .idea/inspectionProfiles/
 .idea/scopes/
+
+bench.py
+js2py/node_modules
+js2py/py_node_modules/*
+!js2py/py_node_modules/__init__.py
