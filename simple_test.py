@@ -13,7 +13,7 @@ assert js2py.eval_js('function (r) {return r}')(5) == 5
 
 x, c = js2py.run_file('examples/esprima.js')
 assert c.esprima.parse('var abc = 40').to_dict() == {'type': 'Program', 'body': [{'type': 'VariableDeclaration', 'kind': 'var', 'declarations': [{'id': {'type': 'Identifier', 'name': 'abc'}, 'type': 'VariableDeclarator', 'init': {'type': 'Literal', 'raw': '40', 'value': 40}}]}], 'sourceType': 'script'}
-
+assert js2py.eval_js('var x = {get y() { return this.val;}, val: 11};x.y') == 11
 try:
     assert js2py.eval_js('syntax error!') and 0
 except js2py.PyJsException as err:
@@ -97,13 +97,13 @@ function helloWorld(a, b, c) {
 }
 '''
 # we can even parse esprima's own source code, but its size is too big for the travis test.
-# sample_js_code = js2py.get_file_contents('examples/esprima.js')
+#sample_js_code = js2py.get_file_contents('examples/esprima.js')
 parsed = esprima.parse(sample_js_code)
 print('use escodegen to get back the js code from the parsed AST')
 reconstructed = escodegen.generate(parsed)
 parsed2 = esprima.parse(sample_js_code)
 reconstructed2 = escodegen.generate(parsed)
-assert reconstructed==reconstructed2 and len(reconstructed)>=len(sample_js_code) and reconstructed.startswith('function')
+assert reconstructed==reconstructed2 and len(reconstructed)>=len(sample_js_code)
 
 
 # chalk ( https://github.com/chalk/chalk )
