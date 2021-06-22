@@ -75,6 +75,7 @@ Icon
 # Files that might appear on external disk
 .Spotlight-V100
 .Trashes
+venv
 
 # Directories potentially created on remote AFP share
 .AppleDB
@@ -110,6 +111,9 @@ $RECYCLE.BIN/
 .idea/scopes/
 
 bench.py
+out.py
+sample.js
+package-lock.json
 js2py/node_modules
 js2py/py_node_modules/*
 !js2py/py_node_modules/__init__.py
